@@ -1,10 +1,70 @@
 # Ride-Sharing
 
+## Project Overview
 
-## Project overview
+A microservices-based ride-sharing platform built with Go, Docker, and Kubernetes. The system uses an event-driven architecture with RabbitMQ for inter-service communication and WebSockets for real-time client updates.
 
-backend microservices system for a Uber‑style ride‑sharing app from the ground up—using Go, Docker, and Kubernetes.
+## Project Structure
 
+```
+ride-sharing/
+├── services/              # Go backend microservices
+│   └── api-gateway/       # HTTP + WebSocket entry point for the frontend
+├── shared/                # Shared Go libraries across services
+│   ├── contracts/         # AMQP routing keys, HTTP response structs, WebSocket message types
+│   ├── env/               # Environment variable helpers (GetString, GetInt, GetBool)
+│   ├── retry/             # Generic exponential backoff retry utility
+│   ├── types/             # Domain types (Route, Geometry, Coordinate)
+│   └── util/              # Misc helpers
+├── web/                   # Next.js frontend (React/TypeScript)
+├── infra/                 # Infrastructure configs
+│   ├── development/       # Dev Dockerfiles + K8s manifests (used by Tilt)
+│   └── production/        # Production Dockerfiles + K8s manifests
+├── docs/architecture/     # Architecture diagrams (Mermaid)
+├── tools/                 # Code generation (service scaffolding)
+├── Tiltfile               # Local dev orchestration
+├── Makefile               # Protobuf generation
+└── go.mod                 # Single Go module for all services
+```
+
+### Backend Services
+
+**API Gateway** (`services/api-gateway/`) — The entry point for the frontend. Exposes REST endpoints and WebSocket connections, bridging RabbitMQ events to clients.
+
+The architecture supports additional services (Trip Service, Driver Service, Payment Service), each following **Clean Architecture**:
+
+```
+services/<name>-service/
+├── cmd/                        # Entry point
+├── internal/
+│   ├── domain/                # Interfaces & business models
+│   ├── service/               # Business logic
+│   └── infrastructure/        # Adapters (events, gRPC, repository)
+└── pkg/types/                 # Public types
+```
+
+New services can be scaffolded with: `go run tools/create_service.go -name <service>`
+
+### Communication Pattern
+
+Services communicate via **RabbitMQ** using a topic exchange with the following routing key conventions:
+
+| Pattern | Description |
+|---------|-------------|
+| `trip.event.*` | Trip lifecycle events (created, driver_assigned, no_drivers_found) |
+| `driver.cmd.*` | Driver commands (trip_request, trip_accept, trip_decline, location, register) |
+| `payment.event.*` | Payment events (session_created, success, failed, cancelled) |
+| `payment.cmd.*` | Payment commands (create_session) |
+
+The API Gateway bridges these events to the frontend via two WebSocket channels: `/drivers` and `/riders`.
+
+### Frontend
+
+A **Next.js** app (`web/`) with:
+
+- **Rider flow** — Pick locations on a Leaflet map, preview trip/fares, request a ride, receive driver assignment, pay via Stripe
+- **Driver flow** — Select a car package (sedan/SUV/van/luxury), view incoming trip requests, accept/decline
+- Real-time updates via WebSocket hooks (`useDriverStreamConnection`, `useRiderStreamConnection`)
 
 ## Trip Scheduling Flow
 [![](https://mermaid.ink/img/pako:eNqNVt9v2jAQ_lcsP21qGvGjZSEPlSpaTX1YxWDVpAmpMvZBIkicOQ6UVf3fd4mdEgcKzQOK47v7vjt_d-aVcimAhnSW5vC3gJTDXcyWiiWzlOCTMaVjHmcs1eQpB3X49Xb88J1p2LLd4d4vFWdTUJuYw-HmnYo3oM5sH34fs10Cqf7Qb6oRFL-bnZLz5c3NnmRIRgrwteJGJmXOuTa2eyP0aFAPyXIyHtWO5YaxN7-PEoNJpNrM1nOSCw3Y_QuPWLq0nBvWl4h30fIos_Bhg5n6vMIVDTgVLyNN5II4LO9L65A8wrbyJimAyAkjwlbSBHBwENisQ2vl80T4pfezapbGRW1RHckkYaloILMNi9dsvgYXtHUQv2E-lXwF-hCccQ5ZE3sNiwZ0A_O2sjSw6oPTbB_nWbT3TB3dGEiykGrLlABBtCQTNp_H-sdP8sUwK3EmkGcS2-lnAQV8rUtwVCchGSvJIc8tJ2KoMGxDjxSZKIVapZZrpovc9_2j4nF7whGPifvM8jxepp8XkW2SzAQmOVKMZXoyF6_Nwq5bunetkLxp2HfIUQR8JQts5Bqz9DJGx3K1ZtZdHAVpCc9mZStkc3s-0WZtTFukOsGnB5QeE7u6PM4gKScQsozktmF_TmuN1qidUHZJa6q9V04m2RowlrV1SnbQc5GUq33YacFL_R2faHtPzxXt0ZN1O-6iXbRW1Zu4HxeiqjTJivk6ziPTcp-U1aXD-NPgZ46a21KL061Qj6kzc38_facarzCyv1tOdGgVk7OUpCipOSxjZEI9moBKWCzwKn8tQ8yojiCBGQ3xVTC1muEV_4Z2rNByuks5DbUqwKNKFsuIhgu2znFlZo79C1Cb4L36R8rmkoav9IWGvW_-1XVn0O_1-kE3GAyHgUd3-Lnb8fu9frc_xKfbvQ6CN4_-qyJ0_KDX7Q86QTDoDAfD66ve23_1IPGQ?type=png)](https://mermaid.live/edit#pako:eNqNVt9v2jAQ_lcsP21qGvGjZSEPlSpaTX1YxWDVpAmpMvZBIkicOQ6UVf3fd4mdEgcKzQOK47v7vjt_d-aVcimAhnSW5vC3gJTDXcyWiiWzlOCTMaVjHmcs1eQpB3X49Xb88J1p2LLd4d4vFWdTUJuYw-HmnYo3oM5sH34fs10Cqf7Qb6oRFL-bnZLz5c3NnmRIRgrwteJGJmXOuTa2eyP0aFAPyXIyHtWO5YaxN7-PEoNJpNrM1nOSCw3Y_QuPWLq0nBvWl4h30fIos_Bhg5n6vMIVDTgVLyNN5II4LO9L65A8wrbyJimAyAkjwlbSBHBwENisQ2vl80T4pfezapbGRW1RHckkYaloILMNi9dsvgYXtHUQv2E-lXwF-hCccQ5ZE3sNiwZ0A_O2sjSw6oPTbB_nWbT3TB3dGEiykGrLlABBtCQTNp_H-sdP8sUwK3EmkGcS2-lnAQV8rUtwVCchGSvJIc8tJ2KoMGxDjxSZKIVapZZrpovc9_2j4nF7whGPifvM8jxepp8XkW2SzAQmOVKMZXoyF6_Nwq5bunetkLxp2HfIUQR8JQts5Bqz9DJGx3K1ZtZdHAVpCc9mZStkc3s-0WZtTFukOsGnB5QeE7u6PM4gKScQsozktmF_TmuN1qidUHZJa6q9V04m2RowlrV1SnbQc5GUq33YacFL_R2faHtPzxXt0ZN1O-6iXbRW1Zu4HxeiqjTJivk6ziPTcp-U1aXD-NPgZ46a21KL061Qj6kzc38_facarzCyv1tOdGgVk7OUpCipOSxjZEI9moBKWCzwKn8tQ8yojiCBGQ3xVTC1muEV_4Z2rNByuks5DbUqwKNKFsuIhgu2znFlZo79C1Cb4L36R8rmkoav9IWGvW_-1XVn0O_1-kE3GAyHgUd3-Lnb8fu9frc_xKfbvQ6CN4_-qyJ0_KDX7Q86QTDoDAfD66ve23_1IPGQ)
