@@ -2,54 +2,46 @@ package main
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
-	"io"
 	"log"
 	"net/http"
+	"ride-sharing/shared/contracts"
 	"time"
 )
 
 func handleTripPreview(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
-
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		http.Error(w, "Failed to read request body", http.StatusBadRequest)
-		return
-	}
-
+	time.Sleep(9*time.Second)
 	var reqBody previewTripRequest
-	if err := json.Unmarshal(body, &reqBody); err != nil {
+	if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
 		http.Error(w, "Failed to parse json data", http.StatusBadRequest)
 		return
 	}
-
+	defer r.Body.Close()
+	// Validate
 	if reqBody.UserID == "" {
-		http.Error(w, "userID is required", http.StatusBadRequest)
+		http.Error(w, "user ID is required", http.StatusBadRequest)
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
-	defer cancel()
+	jsonBody, _ := json.Marshal(reqBody)
+	reader := bytes.NewReader(jsonBody)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://localhost:8082/trip/preview", bytes.NewReader(body))
+	// TODO: Call trip service
+	resp, err := http.Post("http://trip-service:8083/preview", "application/json", reader)
 	if err != nil {
-		http.Error(w, "Failed to create request", http.StatusInternalServerError)
-		return
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		http.Error(w, "Trip service unavailable", http.StatusBadGateway)
+		log.Print(err)
 		return
 	}
 	defer resp.Body.Close()
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(resp.StatusCode)
-	if _, err := io.Copy(w, resp.Body); err != nil {
-		log.Printf("failed to copy trip service response: %v", err)
+	var respBody any
+	if err := json.NewDecoder(resp.Body).Decode(&respBody); err != nil {
+		http.Error(w, "failed to parse JSON data from trip service", http.StatusBadRequest)
+		return
 	}
+
+	response := contracts.APIResponse{Data: respBody}
+
+	writeJSON(w, http.StatusCreated, response)
+
 }
