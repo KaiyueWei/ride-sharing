@@ -36,7 +36,7 @@ func handleRidersWebSocket(w http.ResponseWriter, r *http.Request){
 			log.Printf("WebSocket upgrade failed: %v.", err)
 			break
 		}
-		log.Printf("Received message : &s", message)
+		log.Printf("Received message: %s", message)
 
 	}
 
@@ -94,7 +94,7 @@ func handleDriversWebSocket(w http.ResponseWriter, r *http.Request){
 			log.Printf("WebSocket upgrade failed: %v.", err)
 			break
 		}
-		log.Printf("Received message : &s", message)
+		log.Printf("Received message: %s", message)
 
 	}
 
