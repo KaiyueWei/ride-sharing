@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"ride-sharing/services/api-gateway/grpc_clients"
 	"ride-sharing/shared/contracts"
-	pb "ride-sharing/shared/proto/trip"
 )
 
 func handleTripPreview(w http.ResponseWriter, r *http.Request) {
@@ -28,25 +27,15 @@ func handleTripPreview(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tripService.Close()
 
-	tripPreview, err := tripService.Client.PreviewTrip(r.Context(), &pb.PreviewTripRequest{
-		UserID: reqBody.UserID,
-		StartLocation: &pb.Coordinate{
-			Latitude:  reqBody.Pickup.Latitude,
-			Longitude: reqBody.Pickup.Longitude,
-		},
-		EndLocation: &pb.Coordinate{
-			Latitude:  reqBody.Destination.Latitude,
-			Longitude: reqBody.Destination.Longitude,
-		},
-	})
+	tripPreview, err := tripService.Client.PreviewTrip(r.Context(), reqBody.toProto())
 	if err != nil {
-		log.Printf("failed to preview trip: %v", err)
-		http.Error(w, "failed to preview trip", http.StatusInternalServerError)
-		return
+		log.Printf("Failed to preview the trip: %v", err)
+		http.Error(w, "Failed to preview the trip", http.StatusBadRequest)
+		return 
 	}
 
-	response := contracts.APIResponse{Data: tripPreview}
+	response := contracts.APIResponse{Data:tripPreview}
 
 	writeJSON(w, http.StatusCreated, response)
-
+	
 }
