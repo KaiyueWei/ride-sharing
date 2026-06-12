@@ -18,6 +18,10 @@ type previewTripRequest struct {
 	Destination types.Coordinate `json:"destination"`
 }
 
+type previewTripResponse struct {
+	Route *types.Route `json:"route"`
+}
+
 func (s *HttpHandler) HandleTripPreview(w http.ResponseWriter, r *http.Request) {
 	var reqBody previewTripRequest
 	if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
@@ -30,9 +34,17 @@ func (s *HttpHandler) HandleTripPreview(w http.ResponseWriter, r *http.Request) 
 	t, err := s.Service.GetRoute(ctx, &reqBody.Pickup, &reqBody.Destination)
 	if err != nil {
 		log.Println(err)
+		http.Error(w, "failed to get route", http.StatusInternalServerError)
+		return
 	}
 
-	writeJSON(w, http.StatusOK, t)
+	route := t.ToRoute()
+	if route == nil {
+		http.Error(w, "no route found", http.StatusNotFound)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, previewTripResponse{Route: route})
 }
 
 func writeJSON(w http.ResponseWriter, status int, data any) error {
