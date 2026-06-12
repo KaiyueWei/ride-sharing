@@ -66,3 +66,16 @@ func (r *OsrmApiResponse) ToProto() *pb.Route {
 		Geometry: []*pb.Geometry{{Coordinates: coordinates}},
 	}
 }
+
+
+type PricingConfig struct {
+	PricePerUnitOfDistance float64
+	PricePerMinute float64
+}
+
+func DefaultPricingConfig() *PricingConfig {
+	return &PricingConfig{
+		PricePerUnitOfDistance: 1.5,
+		PricePerMinute: 0.25,
+	}
+}

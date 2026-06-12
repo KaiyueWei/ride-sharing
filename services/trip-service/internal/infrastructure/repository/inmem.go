@@ -19,7 +19,12 @@ func NewInmemRepository() *InmemRepository {
 }
 
 
-func (r *InmemRepository)CreateTrip(ctx context.Context, trip *domain.TripModel) (*domain.TripModel, error) {
+func (r *InmemRepository) CreateTrip(ctx context.Context, trip *domain.TripModel) (*domain.TripModel, error) {
 	r.trips[trip.ID.Hex()] = trip
 	return trip, nil
+}
+
+func (r *InmemRepository) SaveRideFare(ctx context.Context, f *domain.RideFareModel) error {
+	r.rideFares[f.ID.Hex()] = f
+	return nil
 }

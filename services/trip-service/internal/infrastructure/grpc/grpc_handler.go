@@ -29,7 +29,7 @@ func NewGRPCHandler(server *grpc.Server, service domain.TripService) *gRPCHandle
 func (h *gRPCHandler) PreviewTrip(ctx context.Context, req *pb.PreviewTripRequest) (*pb.PreviewTripResponse, error) {
 	pickup := req.GetStartLocation()
 	destination := req.GetEndLocation()
-
+	userID := req.GetUserID()
 	pickupCoords := &types.Coordinate{
 		Latitude:  pickup.Latitude,
 		Longitude: pickup.Longitude,
@@ -44,10 +44,15 @@ func (h *gRPCHandler) PreviewTrip(ctx context.Context, req *pb.PreviewTripReques
 		log.Println(err)
 		return nil, status.Errorf(codes.Internal, "failed to get route: %v", err)
 	}
-
+	estimatedFares := h.service.EstimatedPackagesPriceWithRoute(t)
+	fares, err := h.service.GenerateTripFares(ctx, estimatedFares, userID)
+	if err != nil {
+		log.Println(err)
+		return nil, status.Errorf(codes.Internal, "failed to generate fares: %v", err)
+	}
 	return &pb.PreviewTripResponse{
 		Route: t.ToProto(),
-		RideFares: []*pb.RideFare{},
+		RideFares: domain.ToRideFaresProto(fares),
 	}, nil
 }
 
