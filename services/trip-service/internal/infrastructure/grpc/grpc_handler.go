@@ -39,23 +39,39 @@ func (h *gRPCHandler) PreviewTrip(ctx context.Context, req *pb.PreviewTripReques
 		Latitude:  destination.Latitude,
 		Longitude: destination.Longitude,
 	}
-	t, err := h.service.GetRoute(ctx, pickupCoords, destCoords)
+	route, err := h.service.GetRoute(ctx, pickupCoords, destCoords)
 	if err != nil {
 		log.Println(err)
 		return nil, status.Errorf(codes.Internal, "failed to get route: %v", err)
 	}
-	estimatedFares := h.service.EstimatedPackagesPriceWithRoute(t)
-	fares, err := h.service.GenerateTripFares(ctx, estimatedFares, userID)
+	estimatedFares := h.service.EstimatedPackagesPriceWithRoute(route)
+	fares, err := h.service.GenerateTripFares(ctx, estimatedFares, userID, route)
 	if err != nil {
 		log.Println(err)
 		return nil, status.Errorf(codes.Internal, "failed to generate fares: %v", err)
 	}
 	return &pb.PreviewTripResponse{
-		Route: t.ToProto(),
+		Route: route.ToProto(),
 		RideFares: domain.ToRideFaresProto(fares),
 	}, nil
 }
 
 func (h *gRPCHandler) CreateTrip(ctx context.Context, req *pb.CreateTripRequest) (*pb.CreateTripResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method CreateTrip not implemented")
+	fareID := req.GetRideFareID()
+	userID := req.GetUserID()
+	// 1. Fetch and validate the fare
+	rideFare, err := h.service.GetAndValidateFare(ctx, fareID, userID)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to get and validate fares: %v", err)
+	}
+	// 2. Call create trip
+	trip, err := h.service.CreateTrip(ctx, rideFare)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to create a trip: %v", err)
+	}	
+	// 3. We also need to initlize a driver
+	// 4. add a comment at the end of the function to publish an event
+	return &pb.CreateTripResponse{
+		TripID: trip.ID.Hex(),
+	}, nil
 }

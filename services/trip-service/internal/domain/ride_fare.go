@@ -3,6 +3,7 @@ package domain
 import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	pb "ride-sharing/shared/proto/trip"
+	tripTypes "ride-sharing/services/trip-service/pkg/types"
 )
 
 type RideFareModel struct {
@@ -10,6 +11,7 @@ type RideFareModel struct {
 	UserID string
 	PackageSlug string // example: van, luxury, sedan
 	TotalPriceInCents float64
+    Route *tripTypes.OsrmApiResponse
 }
 
 
