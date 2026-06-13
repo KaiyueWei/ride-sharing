@@ -2,17 +2,20 @@
 
 ## Project Overview
 
-A microservices-based ride-sharing platform built with Go, Docker, and Kubernetes. The system uses an event-driven architecture with RabbitMQ for inter-service communication and WebSockets for real-time client updates.
+A microservices-based ride-sharing platform built with Go, Docker, and Kubernetes. The API Gateway talks to backend services over **gRPC**, while an event-driven layer (RabbitMQ) and WebSockets handle asynchronous, real-time client updates.
 
 ## Project Structure
 
 ```
 ride-sharing/
 ├── services/              # Go backend microservices
-│   └── api-gateway/       # HTTP + WebSocket entry point for the frontend
+│   ├── api-gateway/       # HTTP + WebSocket entry point for the frontend
+│   └── trip-service/      # Trip preview, fare estimation, and trip creation (gRPC)
+├── proto/                 # Protobuf definitions (trip.proto)
 ├── shared/                # Shared Go libraries across services
 │   ├── contracts/         # AMQP routing keys, HTTP response structs, WebSocket message types
 │   ├── env/               # Environment variable helpers (GetString, GetInt, GetBool)
+│   ├── proto/             # Generated protobuf/gRPC code (output of make generate-proto)
 │   ├── retry/             # Generic exponential backoff retry utility
 │   ├── types/             # Domain types (Route, Geometry, Coordinate)
 │   └── util/              # Misc helpers
@@ -29,9 +32,18 @@ ride-sharing/
 
 ### Backend Services
 
-**API Gateway** (`services/api-gateway/`) — The entry point for the frontend. Exposes REST endpoints and WebSocket connections, bridging RabbitMQ events to clients.
+**API Gateway** (`services/api-gateway/`) — The entry point for the frontend. Exposes REST endpoints and WebSocket connections, and calls backend services via gRPC clients (`grpc_clients/`).
 
-The architecture supports additional services (Trip Service, Driver Service, Payment Service), each following **Clean Architecture**:
+| Endpoint | Description |
+|----------|-------------|
+| `POST /trip/preview` | Preview a trip: route + fare estimates per car package |
+| `POST /trip/start` | Create a trip from a previously quoted ride fare |
+| `GET /ws/drivers` | Driver WebSocket stream |
+| `GET /ws/riders` | Rider WebSocket stream |
+
+**Trip Service** (`services/trip-service/`) — Owns the trip lifecycle. Serves the `TripService` gRPC API (`PreviewTrip`, `CreateTrip`) on port `9093`, computes routes and ride fares per car package, and currently persists trips in an in-memory repository.
+
+Each service follows **Clean Architecture**:
 
 ```
 services/<name>-service/
@@ -47,7 +59,13 @@ New services can be scaffolded with: `go run tools/create_service.go -name <serv
 
 ### Communication Pattern
 
-Services communicate via **RabbitMQ** using a topic exchange with the following routing key conventions:
+**Synchronous (gRPC)** — The API Gateway calls backend services through gRPC. Contracts live in `proto/` and generated Go code in `shared/proto/`. Regenerate after editing a `.proto` file:
+
+```bash
+make generate-proto
+```
+
+**Asynchronous (RabbitMQ)** — Services communicate via a topic exchange with the following routing key conventions:
 
 | Pattern | Description |
 |---------|-------------|
@@ -56,7 +74,7 @@ Services communicate via **RabbitMQ** using a topic exchange with the following 
 | `payment.event.*` | Payment events (session_created, success, failed, cancelled) |
 | `payment.cmd.*` | Payment commands (create_session) |
 
-The API Gateway bridges these events to the frontend via two WebSocket channels: `/drivers` and `/riders`.
+The API Gateway bridges these events to the frontend via two WebSocket channels: `/ws/drivers` and `/ws/riders`.
 
 ### Frontend
 
@@ -77,6 +95,12 @@ The project requires a couple tools to run, most of which are part of many devel
 - Go
 - Tilt
 - A local Kubernetes cluster
+- `protoc` with the Go plugins (only needed when regenerating gRPC code):
+  ```bash
+  brew install protobuf
+  go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+  go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+  ```
 
 ### MacOS
 
@@ -139,6 +163,8 @@ go version
 ```bash
 tilt up
 ```
+
+Tilt compiles and deploys the API Gateway (forwarded to `localhost:8081`), the Trip Service, and the web frontend (forwarded to `localhost:3000`) into your local Kubernetes cluster, with live-reload on code changes.
 
 ## Monitor
 
