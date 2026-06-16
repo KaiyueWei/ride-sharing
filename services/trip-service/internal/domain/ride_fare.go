@@ -1,9 +1,10 @@
 package domain
 
 import (
-	"go.mongodb.org/mongo-driver/bson/primitive"
-	pb "ride-sharing/shared/proto/trip"
 	tripTypes "ride-sharing/services/trip-service/pkg/types"
+	pb "ride-sharing/shared/proto/trip"
+
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 type RideFareModel struct {

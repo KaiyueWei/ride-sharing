@@ -11,13 +11,13 @@ import (
 func handleTripPreview(w http.ResponseWriter, r *http.Request) {
 	var reqBody previewTripRequest
 	if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
-		http.Error(w, "Failed to parse json data", http.StatusBadRequest)
+		writeJSONError(w, http.StatusBadRequest, "Failed to parse json data")
 		return
 	}
 	defer r.Body.Close()
 	// Validate
 	if reqBody.UserID == "" {
-		http.Error(w, "user ID is required", http.StatusBadRequest)
+		writeJSONError(w, http.StatusBadRequest, "user ID is required")
 		return
 	}
 
@@ -30,8 +30,8 @@ func handleTripPreview(w http.ResponseWriter, r *http.Request) {
 	tripPreview, err := tripService.Client.PreviewTrip(r.Context(), reqBody.toProto())
 	if err != nil {
 		log.Printf("Failed to preview the trip: %v", err)
-		http.Error(w, "Failed to preview the trip", http.StatusBadRequest)
-		return 
+		writeJSONError(w, http.StatusBadRequest, "Failed to preview the trip")
+		return
 	}
 
 	response := contracts.APIResponse{Data:tripPreview}
@@ -44,13 +44,13 @@ func handleTripPreview(w http.ResponseWriter, r *http.Request) {
 func handleTripStart(w http.ResponseWriter, r *http.Request) {
 	var reqBody startTripRequest
 	if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
-		http.Error(w, "Failed to parse json data", http.StatusBadRequest)
+		writeJSONError(w, http.StatusBadRequest, "Failed to parse json data")
 		return
 	}
 	defer r.Body.Close()
 	// Validate
 	if reqBody.UserID == "" {
-		http.Error(w, "user ID is required", http.StatusBadRequest)
+		writeJSONError(w, http.StatusBadRequest, "user ID is required")
 		return
 	}
 
@@ -63,8 +63,8 @@ func handleTripStart(w http.ResponseWriter, r *http.Request) {
 	trip, err := tripService.Client.CreateTrip(r.Context(), reqBody.toProto())
 	if err != nil {
 		log.Printf("Failed to create the trip: %v", err)
-		http.Error(w, "Failed to create the trip", http.StatusBadRequest)
-		return 
+		writeJSONError(w, http.StatusBadRequest, "Failed to create the trip")
+		return
 	}
 
 	response := contracts.APIResponse{Data:trip}
