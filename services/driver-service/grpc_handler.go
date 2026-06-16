@@ -11,19 +11,31 @@ import (
 
 type grpcHandler struct {
 	pb.UnimplementedDriverServiceServer
-	Service *Service
+	service *Service
 }
 
 func NewGrpcHandler(s *grpc.Server, service *Service) {
 	handler := &grpcHandler{
-		Service: service,
+		service: service,
 	}
 	pb.RegisterDriverServiceServer(s, handler)
 }
 
 func (h *grpcHandler) RegisterDriver(ctx context.Context, req *pb.RegisterDriverRequest) (*pb.RegisterDriverResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method RegisterDriver not implemented")
+	driver, err := h.service.RegisterDriver(req.GetDriverID(), req.GetPackageSlug())
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to register a driver")
+	}
+	return &pb.RegisterDriverResponse{
+		Driver: driver,
+	}, nil
 }
 func (h *grpcHandler) UnregisterDriver(ctx context.Context, req *pb.RegisterDriverRequest) (*pb.RegisterDriverResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method UnregisterDriver not implemented")
+	h.service.UnregisterDriver(req.GetDriverID())
+
+	return &pb.RegisterDriverResponse{
+		Driver: &pb.Driver{
+			Id: req.GetDriverID(),
+		},
+	}, nil
 }
