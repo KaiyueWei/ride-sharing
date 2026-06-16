@@ -1,13 +1,18 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net/http"
+	"ride-sharing/services/api-gateway/grpc_clients"
 	"ride-sharing/shared/contracts"
-	"ride-sharing/shared/util"
+	"ride-sharing/shared/proto/driver"
+	"time"
 
 	"github.com/gorilla/websocket"
 )
+
+const unregisterTimeout = 5 * time.Second
 
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool {
@@ -36,7 +41,7 @@ func handleRidersWebSocket(w http.ResponseWriter, r *http.Request){
 			log.Printf("WebSocket upgrade failed: %v.", err)
 			break
 		}
-		log.Printf("Received message : &s", message)
+		log.Printf("Received message: %s", message)
 
 	}
 
@@ -63,23 +68,43 @@ func handleDriversWebSocket(w http.ResponseWriter, r *http.Request){
 		return 		
 	}
 
-	type Driver struct {
-		Id string `json:"id"`
-		Name string `json:"name"`
-		ProfilePicture string `json:"profilePicture"`
-		CarPlate string `json:"carPlate"`
-		PackageSlug string `json:"packageSlug"`
+	ctx := r.Context()
+
+	driverService, err := grpc_clients.NewDriverServiceClient()
+	if err != nil {
+		log.Printf("Failed to create driver service client: %v", err)
+		return
 	}
+
+	defer func() {
+		// The request context is already cancelled once the connection closes,
+		// so use a fresh, bounded context for the cleanup RPC.
+		cleanupCtx, cancel := context.WithTimeout(context.Background(), unregisterTimeout)
+		defer cancel()
+
+		if _, err := driverService.Client.UnregisterDriver(cleanupCtx, &driver.RegisterDriverRequest{
+			DriverID:    userID,
+			PackageSlug: packageSlug,
+		}); err != nil {
+			log.Printf("Failed to unregister driver %s: %v", userID, err)
+		}
+		driverService.Close()
+		log.Println("Driver unregistered: ", userID)
+	}()
+
+	driverData, err := driverService.Client.RegisterDriver(ctx, &driver.RegisterDriverRequest{
+		DriverID:    userID,
+		PackageSlug: packageSlug,
+	})
+	if err != nil {
+		log.Printf("Failed to register driver %s: %v", userID, err)
+		return
+	}
+
 
 	msg := contracts.WSMessage{
 		Type: "driver.cmd.register",
-		Data: Driver{
-			Id: userID,
-			Name: "Sylvia",
-			ProfilePicture: util.GetRandomAvatar(1),
-			CarPlate: "ABC123",
-			PackageSlug: packageSlug,
-		},
+		Data: driverData.Driver,
 	}
 
 	if err := conn.WriteJSON(msg); err != nil{
@@ -94,7 +119,7 @@ func handleDriversWebSocket(w http.ResponseWriter, r *http.Request){
 			log.Printf("WebSocket upgrade failed: %v.", err)
 			break
 		}
-		log.Printf("Received message : &s", message)
+		log.Printf("Received message: %s", message)
 
 	}
 
