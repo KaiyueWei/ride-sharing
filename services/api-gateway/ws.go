@@ -72,7 +72,8 @@ func handleDriversWebSocket(w http.ResponseWriter, r *http.Request){
 
 	driverService, err := grpc_clients.NewDriverServiceClient()
 	if err != nil {
-		log.Fatal(err)
+		log.Printf("Failed to create driver service client: %v", err)
+		return
 	}
 
 	defer func() {
