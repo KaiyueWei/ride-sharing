@@ -30,6 +30,14 @@ func main() {
 		log.Fatalf("failed to listen: %v", err)
 	}
 
+	// RabbitMQ connection
+	conn, err := amqp.Dial(env.GetString("RABBITMQ_DEFAULT_URI", "amqp://guest:guest@rabbitmq:5672/"))
+	if err != nil {
+		log.Fatal("failed to connect to rabbitmq")
+	}
+	defer conn.Close()
+
+	// start the grpc
 	service := NewService()
 
 	grpcServer := grpcserver.NewServer()
