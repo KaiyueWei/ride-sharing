@@ -25,8 +25,8 @@ spec:
               memory: "128Mi"
               cpu: "200m"
           env:
-              - name: RABBITMQ_DEFAULT_URI
-                valueFrom:
+            - name: RABBITMQ_DEFAULT_URI
+              valueFrom:
                 secretKeyRef:
                   name: rabbitmq-credentials
                   key: uri
